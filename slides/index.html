@@ -1,0 +1,587 @@
+<!doctype html>
+<html lang="en">
+
+  <head>
+    <meta charset="utf-8">
+
+    <title>Using Resolvers to Organize and Maintain Your Site &amp; Sanity</title>
+
+    <meta name="description" content="Using Resolvers to Organize and Maintain Your Site &amp; Sanity">
+    <meta name="author" content="Eric Brody">
+
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+    <link rel="stylesheet" href="css/reveal.min.css">
+    <link rel="stylesheet" href="css/theme/default.css" id="theme">
+
+    <!-- For syntax highlighting -->
+    <link rel="stylesheet" href="lib/css/zenburn.css">
+
+    <!-- If the query includes 'print-pdf', include the PDF print sheet -->
+    <script>
+      if( window.location.search.match( /print-pdf/gi ) ) {
+        var link = document.createElement( 'link' );
+        link.rel = 'stylesheet';
+        link.type = 'text/css';
+        link.href = 'css/print/pdf.css';
+        document.getElementsByTagName( 'head' )[0].appendChild( link );
+      }
+    </script>
+
+    <!--[if lt IE 9]>
+    <script src="lib/js/html5shiv.js"></script>
+    <![endif]-->
+  </head>
+
+  <body>
+
+    <div class="reveal">
+
+      <!-- Any section element inside of this container is displayed as a slide -->
+      <div class="slides">
+        <section>
+          <h2>Using Resolvers to Organize and Maintain Your Site &amp; Sanity</h2>
+          <h4>08/20/2014</h4>
+          <p>
+            <small><a href="http://www.meetup.com/AngularJS-DC/">AngularJS DC</a> Meetup talk by <a href="https://github.com/underscorebrody">Eric Brody</a> - <a href="http://twitter.com/_brody">@_brody</a></small>
+          </p>
+        </section>
+
+        <section>
+          <section>
+            <h2>here be promises</h2>
+            <h4>so.. a brief refresher</h4>
+          </section>
+          <section>
+            <p>
+              Example using Angular's <code>$q</code>
+              <pre><code class="javascript" data-trim contenteditable>
+function promiseMeSomething(){
+  //create a `Deferred` object
+  var deferred = $q.defer();
+
+  // resolve or reject the promise asynchronously
+  $timeout(function(){
+    deferred.resolve('some data');
+    // OR
+    deferred.reject('because i said so');
+  },2000);
+
+  //return the `Deferred`'s `promise`
+  return deferred.promise;
+}
+              </code></pre>
+            </p>
+          </section>
+          <section>
+            <p>
+              The returned <code>promise</code> has a method <code>then</code> that takes two arguments
+            </p>
+            <pre><code class="javascript" data-trim contenteditable>
+promiseMeSomething().then(
+  // a success handler method, called on `resolve`
+  function success(data){
+    // do some stuff with the data
+  },
+  // and an error handler method, called on `reject`
+  function error(reason){
+    // handle the error
+  }
+);
+            </code></pre>
+          </section>
+          <aside class="notes">
+            - Angular uses <code>$q</code>, which is a fairly simple promise implementation
+            - Create a Deferred object that will be resolved later
+            - The Deferred has an attribute `promise` which has a method `then`
+            - `then` takes two arguments, which are functions for `success` or `failure`
+            - When you call the Deferred object's `resolve` method, it calls the `success` method that was passed in to `then`
+            - When you call the Deferred object's `reject` method it calls the `failure` method that was passed in to `then`
+          </aside>
+        </section>
+
+        <section>
+          <section>
+            <h2>What problem are we solving?</h2>
+          </section>
+          <section>
+            <p>Angular controllers setting up data on init</p>
+            <pre><code class="javascript" data-trim contenteditable>
+angular.module('meetup.demoApp').controller('PageCtrl', [
+    '$scope',
+    function (
+        $scope,
+    ) {
+
+        function init(){
+          // have to get all the data ready in here
+          // does this really belong in the controller?
+        }
+
+        init();
+    }
+]);
+
+          </code></pre>
+          <p>Conflated responsibility, and can lead to duplication</p>
+          </section>
+        </section>
+
+        <section>
+          <section>
+            <h2>setting up a basic resolver</h2>
+          </section>
+          <section>
+            <p>A 'resolver' is a factory that returns a promise</p>
+            <pre><code class="javascript" data-trim contenteditable>
+angular.module('meetup.resolvers').factory('DemoResolver', [
+  '$q',
+  function(
+    $q
+  ){
+    var defer = $q.defer();
+
+    // this is the data that will be resolved
+    defer.resolve('some data');
+
+    return defer.promise;
+  }
+]);
+            </code></pre>
+          </section>
+          <section>
+            <p>Get your routes going</p>
+            <pre><code class="javascript" data-trim contenteditable>
+angular.module('meetup.resolvers', [
+]);
+angular.module('meetup.demoApp', ['ngRoute', 'meetup.resolvers'])
+  .config(['$routeProvider',
+    function ($routeProvider) {
+      $routeProvider
+        .when('/', {
+          templateUrl: 'views/page/main.html',
+          controller: 'MainCtrl',
+          resolve: { // here's the magic!
+            // Rely on Angular's dependency injection
+            resolvedData: 'DemoResolver'
+          }
+        });
+    }
+]);
+            </code></pre>
+            <p>The value of the <code>resolve</code> attribute can also be<br/>a function or a <code>promise</code></p>
+          </section>
+          <section>
+            <p><code>resolvedData</code> is available in your controller!</p>
+            <pre><code class="javascript" data-trim contenteditable>
+angular.module('meetup.demoApp').controller('MainCtrl', [
+  '$scope',
+  'resolvedData',
+  function (
+    $scope,
+    resolvedData
+  ) {
+    console.log(resolvedData) // 'some data'
+  }
+]);
+            </code></pre>
+          </section>
+        </section>
+
+        <section>
+          <section>
+            <h2>So what's really going on</h2>
+          </section>
+          <section>
+            <ul>
+              <li>Angular waits for all of a route's resolvers before finishing the change to that route</li>
+              <li>All resolved data is available to the route's controller via dependency injection</li>
+              <li>The dependency name matches the attribute name on the <code>resolve</code> object</li>
+              <li><b>Bonus:</b> This works pretty much the same in <code>ui-router</code></li>
+            </ul>
+          </section>
+          <section>
+            <p>If any of the resolvers are rejected the route change will fail and a <code>$routeChangeError</code> event will fire on <code>$rootScope</code></p>
+            <pre><code class="javascript" data-trim contenteditable>
+// these events are all helpful in managing your site's route change state
+
+$rootScope.$on('$routeChangeStart', function(evt, routeData){
+    // show a preloader, some funky animation
+});
+$rootScope.$on('$routeChangeSuccess', function(evt, routeData){
+    // hide the preloader, some other funky animation
+});
+$rootScope.$on('$routeChangeError', function(evt, routeData){
+    // show an error message, some deeply upsetting animation :(
+});
+            </code></pre>
+          </section>
+        </section>
+        <section>
+          <section>
+            <h2>Now comes the bread and butter</h2>
+            <h4>(getting data loaded is a big part of this)</h4>
+          </section>
+          <section>
+            <p>Load some data via <code>$http</code></p>
+            <pre><code class="javascript" data-trim contenteditable>
+angular.module('meetup.resolvers').factory('DemoResolver', ['$q', '$http',
+    function($q, $http){
+        var defer = $q.defer();
+
+        $http.get('http://md5.jsontest.com/?text=angular_dc_meetup')
+          .success(function(data, status){
+            defer.resolve(data);
+          })
+          .error(function(data, status){
+            defer.reject(status);
+          });
+
+        return defer.promise;
+    }
+]);
+            </code></pre>
+          </section>
+          <section>
+            <p>Load some data via a service</p>
+            <pre><code class="javascript" data-trim contenteditable>
+angular.module('meetup.resolvers').factory('DemoResolver', [
+    '$q', '$http', 'MD5Service',
+    function($q, $http, MD5Service){
+        var defer = $q.defer();
+
+        // MD5Service.getMD5 returns a promise
+        MD5Service.getMD5().then(
+          function success(data){
+            defer.resolve(data);
+          },
+          function error(status){
+            defer.resolve(status);
+          }
+        );
+        return defer.promise;
+    }
+]);
+            </code></pre>
+          </section>
+        </section>
+        <section>
+          <section>
+            <h2>What do you mean you've got two resolvers that need the same data?</h2>
+            <h4>okay fine</h4>
+          </section>
+          <section>
+            <p><code>getData</code> on this service can safely be called from multiple resolvers without extra requests going out</p>
+            <pre class="stretch"><code class="javascript" data-trim contenteditable>
+angular.module('meetup.services').factory('SharedMD5Service', [
+    '$q', '$http',
+    function($q, $http){
+        var defer;
+
+        function getData(){
+          // if `getData` has been called without resolving we return the same promise
+          if(defer){
+            return defer.promise;
+          }
+          defer = $q.defer();
+
+          $http.get('http://md5.jsontest.com/?text=angular_dc_meetup')
+            .success(function(data, status){
+              defer.resolve(data);
+              defer = undefined;
+            })
+            .error(function(data, status){
+              defer.reject(status);
+              defer = undefined;
+            });
+
+          return defer.promise;
+        }
+
+        return {
+          getData: getData
+        }
+    }
+]);
+            </code></pre>
+          </section>
+          <section>
+            <p>This works because <code>$q</code> promises are <b>always</b> asynchronous</p>
+            <pre class="stretch"><code class="javascript" data-trim contenteditable>
+angular.module('meetup.resolvers').factory('DemoResolverFoo', [
+    '$q', 'SharedMD5Service',
+    function($q, SharedMD5Service){
+        var defer = $q.defer();
+        SharedMD5Service.getData().then(
+          function success(data){
+            // perform some Foo related tasks with the data
+            defer.resolve(data);
+          },
+          function error(status){
+            defer.resolve(status);
+          }
+        );
+        return defer.promise;
+    }
+]);
+angular.module('meetup.resolvers').factory('DemoResolverBar', [
+    '$q', 'SharedMD5Service',
+    function($q, SharedMD5Service){
+        var defer = $q.defer();
+        SharedMD5Service.getData().then(
+          function success(data){
+            // perform some Bar related tasks with the data
+            defer.resolve(data);
+          },
+          function error(status){
+            defer.resolve(status);
+          }
+        );
+        return defer.promise;
+    }
+]);
+            </code></pre>
+          </section>
+        </section>
+        <section>
+          <section>
+            <h2>Resolver responsibility</h2>
+          </section>
+          <section>
+            <p>Responsible for loading data from a single endpoint, to be used anywhere it is needed (we've seen this)</p>
+            <pre><code class="javascript" data-trim contenteditable>
+angular.module('meetup.resolvers').factory('DemoResolver', ['$q', '$http',
+  function($q, $http){
+    var defer = $q.defer();
+
+    $http.get('http://md5.jsontest.com/?text=angular_dc_meetup')
+      .success(function(data, status){
+        defer.resolve(data);
+      })
+      .error(function(data, status){
+        defer.reject(status);
+      });
+
+    return defer.promise;
+  }
+]);
+            </code></pre>
+          </section>
+          <section>
+            <p>Responsible for loading a bunch of data for a specific page<br/><small>(maybe not quite as clean)</small></p>
+            <pre class="stretch"><code class="javascript" data-trim contenteditable>
+angular.module('meetup.resolvers').factory('MainPageResolver', [
+  '$q',
+  'ThatService',
+  'OtherService',
+  function($q, ThatService, OtherService){
+    var defer = $q.defer(),
+        data = {};
+
+    ThatService.getData().then(
+      function thatSuccess(thatData){
+        data.that = thatData;
+
+        return OtherService.getData().then(
+          function otherSuccess(otherData){
+            data.other = otherData;
+            defer.resolve(data);
+          },
+          function otherError(){
+            defer.reject('Other failed!');
+          }
+        );
+      },
+      function thatError(){
+        defer.reject('That failed!');
+      }
+    );
+
+    return defer.promise;
+  }
+]);
+            </code></pre>
+          </section>
+          <section>
+            <p>Using <code>$q.all</code> can help a bit!</p>
+            <pre class="stretch"><code class="javascript" data-trim contenteditable>
+angular.module('meetup.resolvers').factory('MainPageResolver', [
+  '$q',
+  'ThatService',
+  'OtherService',
+  function($q, ThatService, OtherService){
+    var defer = $q.defer(),
+        data = {};
+
+    $q.all([
+      ThatService.getData(),
+      OtherService.getData()
+    ]).then(
+      function success(dataArray){
+        data.that = dataArray[0];
+        data.other = dataArray[1];
+        defer.resolve(data);
+      },
+      function error(){
+        defer.reject();
+      }
+    );
+
+    return defer.promise;
+  }
+]);
+            </code></pre>
+            <p><code>$q.all</code> takes an array of promises as its argument, then returns a promise that resolves with an array containing the resolved data from the array of promises</p>
+          </section>
+        </section>
+        <section>
+          <section>
+            <h2>Not just for loading data</h2>
+          </section>
+          <section>
+            <p>
+              Authentication and Authorization<br/>
+              <small>A resolver doesn't always have to return data</small>
+            </p>
+            <pre><code class="javascript" data-trim contenteditable>
+angular.module('meetup.resolvers').factory('AuthResolver', [
+  '$q',
+  '$route',
+  'AuthService',
+  function($q, $route, AuthService){
+    var defer = $q.defer(),
+        currPath = $route.current.$$route.originalPath;
+
+    if(AuthService.loggedIn() && AuthService.allowRoute(currPath)){
+      defer.resolve();
+    }
+    else {
+      defer.reject('Not Allowed');
+    }
+    return defer.promise;
+  }
+]);
+            </code></pre>
+            <p><code>AuthService</code> handles the business logic, the resolver makes it happen before the route changes</p>
+          </section>
+          <section>
+            <p>Managing a poller</p>
+            <pre class="stretch"><code class="javascript" data-trim contenteditable>
+angular.module('meetup.resolvers').factory('PollerStartResolver', [
+  '$q',
+  'PollerService',
+  function($q, PollerService){
+    var defer = $q.defer();
+
+    PollerService.start();
+    defer.resolve();
+
+    return defer.promise;
+  }
+]);
+
+angular.module('meetup.resolvers').factory('PollerStopResolver', [
+  '$q',
+  'PollerService',
+  function($q, PollerService){
+    var defer = $q.defer();
+
+    PollerService.stop();
+    defer.resolve();
+
+    return defer.promise;
+  }
+]);
+            </code></pre>
+            <p>This may seem like overkill, but it allows you to quickly and easily assign routes where the poller should run</p>
+            <small>Looking for a poller? <a href="http://emmaguo.github.io/angular-poller/">This one is pretty darn good</a></small>
+          </section>
+          <section>
+            <p>Managing cookies</p>
+            <pre><code class="javascript" data-trim contenteditable>
+angular.module('meetup.resolvers').factory('CookieResolver', [
+  '$q',
+  '$cookies',
+  function($q, $cookies){
+    var defer = $q.defer();
+
+    if(!$cookies.something){
+      $cookies.something = 'this is pretty important';
+      defer.resolve($cookies.something);
+    }
+    else if(!$cookies.otherThing){
+      defer.reject('really needed that other thing');
+    }
+
+    return defer.promise;
+  }
+]);
+            </code></pre>
+            <p>This also could apply to <code>localStorage</code> (nice module <a href="https://github.com/grevory/angular-local-storage">here</a>), or data that's just stored in memory</p>
+          </section>
+        </section>
+        <section>
+          <section>
+            <h2>Not always the answer</h2>
+          </section>
+          <section>
+            <ul>
+              <li>Tasks that should only occur when the page is <b>guaranteed</b> to load would normally not go in a resolver</li>
+              <li>A big one is analytics. You don't want your analytics to fire and then have the route change rejected</li>
+            </ul>
+          </section>
+        </section>
+        <section>
+          <h2>the end</h2>
+          <small>Slides - <a href="https://github.com/underscorebrody/meetup-resolvers">https://github.com/underscorebrody/meetup-resolvers</a></small><br/>
+          <small>Tweets - <a href="https://twitter.com/_brody">@_brody</a></small><br/>
+          <small>Emails - <a href="mailto:ebrody@gmail.com">ebrody@gmail.com</a></small>
+        </section>
+      </div>
+
+    </div>
+
+    <script src="lib/js/head.min.js"></script>
+    <script src="js/reveal.min.js"></script>
+
+    <script>
+
+      // Full list of configuration options available here:
+      // https://github.com/hakimel/reveal.js#configuration
+      Reveal.initialize({
+        controls: true,
+        progress: true,
+        history: true,
+        center: true,
+        autoslide: 0,
+
+        theme: Reveal.getQueryHash().theme || 'beige', // available themes are in /css/theme
+        transition: Reveal.getQueryHash().transition || 'linear', // default/cube/page/concave/zoom/linear/fade/none
+
+        backgroundTransition: 'slide',
+
+        margin:0,
+        height:900,
+
+        // Parallax scrolling
+        // parallaxBackgroundImage: 'https://s3.amazonaws.com/hakim-static/reveal-js/reveal-parallax-1.jpg',
+        // parallaxBackgroundSize: '2100px 900px',
+
+        // Optional libraries used to extend on reveal.js
+        dependencies: [
+          { src: 'lib/js/classList.js', condition: function() { return !document.body.classList; } },
+          { src: 'plugin/markdown/marked.js', condition: function() { return !!document.querySelector( '[data-markdown]' ); } },
+          { src: 'plugin/markdown/markdown.js', condition: function() { return !!document.querySelector( '[data-markdown]' ); } },
+          { src: 'plugin/highlight/highlight.js', async: true, callback: function() { hljs.initHighlightingOnLoad(); } },
+          { src: 'plugin/zoom-js/zoom.js', async: true, condition: function() { return !!document.body.classList; } },
+          { src: 'plugin/notes/notes.js', async: true, condition: function() { return !!document.body.classList; } }
+        ]
+      });
+
+    </script>
+
+  </body>
+</html>
