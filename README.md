@@ -3,6 +3,8 @@ AngularJS DC Meetup Talk
 
 In this repo you'll find the slides from my talk on 08/20/2014
 
+Slides also hosted at http://ericbrody.com/meetup-resolvers
+
 Some links:
 
 https://docs.angularjs.org/api/ngRoute/provider/$routeProvider
